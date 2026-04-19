@@ -54,20 +54,7 @@ img {
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  max-width: 640px;
-  margin: 0 auto;
   width: 100%;
-}
-
-/* On larger screens, show a subtle border so it looks intentional */
-@media (min-width: 641px) {
-  body {
-    background: #06060a;
-  }
-  .app {
-    border-left: 1px solid var(--border);
-    border-right: 1px solid var(--border);
-  }
 }
 
 .app-content {
@@ -193,7 +180,7 @@ img {
 
 .results-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 28vw, 160px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   gap: 12px;
 }
 
@@ -287,6 +274,7 @@ img {
 
 .sheet {
   width: 100%;
+  max-width: 560px;
   max-height: 94dvh;
   background: var(--surface);
   border-radius: 24px 24px 0 0;
@@ -294,6 +282,15 @@ img {
   -webkit-overflow-scrolling: touch;
   animation: slideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   padding-bottom: env(safe-area-inset-bottom, 20px);
+}
+
+@media (min-width: 600px) {
+  .sheet-overlay {
+    justify-content: center;
+  }
+  .sheet {
+    border-radius: 24px 24px 0 0;
+  }
 }
 
 @keyframes slideUp {
