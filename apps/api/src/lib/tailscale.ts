@@ -1,5 +1,5 @@
 import type { TailnetNode } from '@lighthouse/shared';
-import { localTailscaleStatus, type LocalPeer } from './tailscale-local.js';
+import { localPing, localTailscaleStatus, type LocalPeer } from './tailscale-local.js';
 
 export interface TailscaleClient {
   listDevices: () => Promise<TailnetNode[]>;
@@ -51,25 +51,46 @@ export function createTailscaleClient(config: TailscaleConfig): TailscaleClient 
     if (!config.clientId || !config.clientSecret) {
       const local = await localTailscaleStatus();
       if (!local) return [];
-      return assignRadialLayout(local.peers.map((p) => localPeerToNode(p, local.selfId)));
+      const nodes = local.peers.map((p) => localPeerToNode(p, local.selfId));
+      await fillLatencies(nodes);
+      return assignRadialLayout(nodes);
     }
     const [remote, local] = await Promise.all([
       apiGet<{ devices: TsDevice[] }>(`/tailnet/${encodeURIComponent(tailnet())}/devices`),
       localTailscaleStatus(),
     ]);
     const localByIp = new Map<string, LocalPeer>();
+    const selfIps = new Set<string>();
     if (local) {
       for (const peer of local.peers) {
         for (const ip of peer.tailscaleIPs) localByIp.set(ip, peer);
+        if (peer.id === local.selfId) for (const ip of peer.tailscaleIPs) selfIps.add(ip);
       }
     }
     const nodes = remote.devices.map((d) => {
       const node = deviceToNode(d);
+      // Mark the device matching our own tailscaled as `self` so the map can
+      // pin it at the center. Match by IP — device IDs are formatted differently
+      // across the OAuth API vs local tailscaled.
+      if (d.addresses.some((a) => selfIps.has(a))) node.role = 'self';
       const match = d.addresses.map((a) => localByIp.get(a)).find(Boolean);
-      if (match && !match.online) node.latency = -1; // offline marker
+      if (match && !match.online) node.latency = -1;
       return node;
     });
+    await fillLatencies(nodes);
     return assignRadialLayout(nodes);
+  }
+
+  async function fillLatencies(nodes: TailnetNode[]): Promise<void> {
+    // Ping every non-self peer in parallel. Short timeout so a single slow peer
+    // can't hold up the whole response; unresponsive peers just stay at 0.
+    await Promise.all(
+      nodes.map(async (n) => {
+        if (n.role === 'self' || !n.ip || n.latency === -1) return;
+        const ms = await localPing(n.ip, undefined, 1200);
+        if (ms != null) n.latency = ms;
+      }),
+    );
   }
 
   async function getDevice(id: string): Promise<TailnetNode | null> {

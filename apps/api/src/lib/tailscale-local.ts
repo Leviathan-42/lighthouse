@@ -6,6 +6,8 @@
 
 import { request } from 'node:http';
 
+const AUTH_HEADER = 'Basic ' + Buffer.from(':').toString('base64');
+
 export interface LocalPeer {
   id: string;
   hostName: string;
@@ -26,14 +28,21 @@ export interface LocalStatus {
 const SOCKET = '/var/run/tailscale/tailscaled.sock';
 
 export async function localTailscaleStatus(socketPath = SOCKET): Promise<LocalStatus | null> {
+  const body = await localApiGet<RawStatus>('/localapi/v0/status', socketPath, 1500);
+  return body ? projectStatus(body) : null;
+}
+
+// Active disco ping via tailscaled's LocalAPI. Returns RTT in ms, or null on
+// timeout/failure. Used to populate the latency field on TailnetNode.
+export async function localPing(ip: string, socketPath = SOCKET, timeoutMs = 1500): Promise<number | null> {
   return new Promise((resolve) => {
     const req = request(
       {
         socketPath,
-        method: 'GET',
-        path: '/localapi/v0/status',
-        headers: { Host: 'local-tailscaled', Authorization: 'Basic ' + Buffer.from(':').toString('base64') },
-        timeout: 1500,
+        method: 'POST',
+        path: `/localapi/v0/ping?ip=${encodeURIComponent(ip)}&type=disco`,
+        headers: { Host: 'local-tailscaled', Authorization: AUTH_HEADER, 'Content-Length': '0' },
+        timeout: timeoutMs,
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -41,8 +50,41 @@ export async function localTailscaleStatus(socketPath = SOCKET): Promise<LocalSt
         res.on('end', () => {
           if (res.statusCode && res.statusCode >= 400) return resolve(null);
           try {
-            const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as RawStatus;
-            resolve(projectStatus(body));
+            const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+              LatencySeconds?: number;
+              Err?: string;
+            };
+            if (body.Err || typeof body.LatencySeconds !== 'number') return resolve(null);
+            resolve(Math.round(body.LatencySeconds * 1000));
+          } catch {
+            resolve(null);
+          }
+        });
+      },
+    );
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.end();
+  });
+}
+
+function localApiGet<T>(path: string, socketPath: string, timeoutMs: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const req = request(
+      {
+        socketPath,
+        method: 'GET',
+        path,
+        headers: { Host: 'local-tailscaled', Authorization: AUTH_HEADER },
+        timeout: timeoutMs,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 400) return resolve(null);
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')) as T);
           } catch {
             resolve(null);
           }

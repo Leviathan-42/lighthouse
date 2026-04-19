@@ -44,6 +44,12 @@ export const api = {
 
   tailnetDevices: () => request<TailnetNode[]>('/tailnet/devices'),
   tailnetDevice: (id: string) => request<TailnetNode>(`/tailnet/devices/${id}`),
+  tailnetPing: (ip: string) =>
+    request<{ latencyMs: number }>('/tailnet/ping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip }),
+    }),
 
   deploys: (limit = 50) => request<Deploy[]>(`/deploys?limit=${limit}`),
   deploy: (id: string) => request<Deploy>(`/deploys/${id}`),

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { TailscaleClient } from '../lib/tailscale.js';
+import { localPing } from '../lib/tailscale-local.js';
 import { openSse } from '../lib/sse.js';
 
 interface Deps {
@@ -23,6 +24,15 @@ export async function tailnetRoutes(fastify: FastifyInstance, { tailscale }: Dep
     const device = await tailscale.getDevice(id);
     if (!device) return reply.code(404).send({ error: 'not_found' });
     return device;
+  });
+
+  // Active disco ping to a peer IP. Used by the "Ping" button on the node inspector.
+  fastify.post('/tailnet/ping', async (req, reply) => {
+    const ip = (req.body as { ip?: string } | null)?.ip;
+    if (!ip || typeof ip !== 'string') return reply.code(400).send({ error: 'missing_ip' });
+    const latencyMs = await localPing(ip);
+    if (latencyMs == null) return reply.code(504).send({ error: 'no_reply' });
+    return { latencyMs };
   });
 
   // Active-link stream. For now we emit the full device list at a slow interval —

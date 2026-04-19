@@ -5,6 +5,7 @@ import type { DeployStatus, ServiceStatus, TailnetEdge, TailnetNode, Tone, View 
 import { spark } from './data';
 import { StatusDot, Button, Badge, Kbd, Sparkline, Icon } from './primitives';
 import { TopBar } from './screens';
+import { api } from './lib/api';
 import {
   useCancelDeploy,
   useDeploy,
@@ -174,6 +175,42 @@ export function NetworkMap() {
 }
 
 function NodeInspector({ node }: { node: TailnetNode }) {
+  const [pingMs, setPingMs] = useState<number | null>(null);
+  const [pingErr, setPingErr] = useState<string | null>(null);
+  const [pinging, setPinging] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyIp = async () => {
+    try {
+      await navigator.clipboard.writeText(node.ip);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard API needs a secure context; fall back to a prompt.
+      window.prompt('Copy this IP:', node.ip);
+    }
+  };
+
+  const openSsh = () => {
+    // Most desktop OSes route ssh:// URLs to their default SSH client
+    // (Terminal on macOS, PuTTY/OpenSSH on Windows, gnome-terminal on Linux).
+    // Falls back to nothing silently if no handler is registered.
+    window.location.href = `ssh://${node.ip}`;
+  };
+
+  const doPing = async () => {
+    setPinging(true);
+    setPingErr(null);
+    try {
+      const res = await api.tailnetPing(node.ip);
+      setPingMs(res.latencyMs);
+    } catch (err) {
+      setPingErr((err as Error).message || 'no reply');
+    } finally {
+      setPinging(false);
+    }
+  };
+
   return (
     <div style={{ overflow: 'auto', height: '100%' }}>
       <div style={{ padding: 20, borderBottom: '1px solid var(--border-subtle)' }}>
@@ -187,14 +224,16 @@ function NodeInspector({ node }: { node: TailnetNode }) {
           }}><Icon.Server /></div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 600 }}>{node.name}</div>
-            <div className="mono" style={{ fontSize: 11, color: 'var(--fg-tertiary)' }}>{node.os}</div>
+            <div className="mono" style={{ fontSize: 11, color: 'var(--fg-tertiary)' }}>{node.os || node.role}</div>
           </div>
           {node.exitNode && <Badge tone="warn">exit node</Badge>}
         </div>
-        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-          <Button size="sm" variant="accent" icon={<Icon.ExternalLink />}>SSH</Button>
-          <Button size="sm" icon={<Icon.Copy />}>Copy IP</Button>
-          <Button size="sm">Ping</Button>
+        <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
+          <Button size="sm" variant="accent" icon={<Icon.ExternalLink />} onClick={openSsh}>SSH</Button>
+          <Button size="sm" icon={<Icon.Copy />} onClick={copyIp}>{copied ? 'Copied!' : 'Copy IP'}</Button>
+          <Button size="sm" onClick={doPing} disabled={pinging}>
+            {pinging ? 'Pinging…' : pingMs != null ? `${pingMs}ms` : pingErr ? 'no reply' : 'Ping'}
+          </Button>
         </div>
       </div>
 
@@ -202,7 +241,7 @@ function NodeInspector({ node }: { node: TailnetNode }) {
         <dt style={{ color: 'var(--fg-tertiary)', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tailscale IP</dt>
         <dd className="mono">{node.ip}</dd>
         <dt style={{ color: 'var(--fg-tertiary)', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Latency</dt>
-        <dd className="mono tabular">{node.latency} ms</dd>
+        <dd className="mono tabular">{node.latency === -1 ? 'offline' : node.latency > 0 ? `${node.latency} ms` : '—'}</dd>
         <dt style={{ color: 'var(--fg-tertiary)', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Role</dt>
         <dd style={{ textTransform: 'capitalize' }}>{node.role}</dd>
         {node.subnet && <>
