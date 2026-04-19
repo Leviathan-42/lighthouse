@@ -1,0 +1,19 @@
+# Normalize line endings in the repo — avoids CRLF breaking scripts on Linux.
+* text=auto eol=lf
+
+# These MUST be LF even on Windows checkouts (shebangs + Dockerfile)
+*.sh        text eol=lf
+Makefile    text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+
+# Lockfile should stay exactly as pnpm wrote it
+pnpm-lock.yaml -text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
