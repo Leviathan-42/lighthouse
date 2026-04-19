@@ -18,6 +18,7 @@ import { tailnetRoutes } from './routes/tailnet.js';
 import { deployRoutes } from './routes/deploys.js';
 import { webhookRoutes } from './routes/webhooks.js';
 import { terminalRoutes } from './routes/terminal.js';
+import { mediaRoutes } from './routes/media.js';
 
 export async function buildServer(config: Config) {
   const fastify = Fastify({
@@ -62,6 +63,7 @@ export async function buildServer(config: Config) {
       await deployRoutes(api, { db, engine });
       await webhookRoutes(api, { docker, engine, webhookSecret: config.GITEA_WEBHOOK_SECRET });
       await terminalRoutes(api, { docker });
+      await mediaRoutes(api, { config });
     },
     { prefix: '/api/v1' },
   );

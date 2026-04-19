@@ -66,6 +66,8 @@ services:
       GITEA_URL: ${GITEA_URL:-}
       GITEA_TOKEN: ${GITEA_TOKEN:-}
       GITEA_WEBHOOK_SECRET: ${GITEA_WEBHOOK_SECRET:-}
+      RD_API_KEY: ${RD_API_KEY:-}
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
       NODE_ENV: production
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -85,6 +87,25 @@ services:
     depends_on:
       - prometheus
       - loki
+
+  vega:
+    build:
+      context: ..
+      dockerfile: apps/vega/Dockerfile
+    image: lighthouse/vega:latest
+    container_name: lighthouse-vega
+    restart: unless-stopped
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "lighthouse"
+      traefik.http.routers.vega.rule: "PathPrefix(`/vega`)"
+      traefik.http.routers.vega.entrypoints: "web"
+      traefik.http.routers.vega.priority: "5"
+      traefik.http.services.vega.loadbalancer.server.port: "80"
+      traefik.http.middlewares.vega-strip.stripprefix.prefixes: "/vega"
+      traefik.http.routers.vega.middlewares: "vega-strip,lh-ts-headers@file"
+    networks:
+      - lighthouse
 
   lighthouse-web:
     build:

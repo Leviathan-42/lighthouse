@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel --filter @lighthouse/web --filter @lighthouse/api dev",
+    "dev": "pnpm -r --parallel --filter @lighthouse/web --filter @lighthouse/api --filter @lighthouse/vega dev",
     "dev:web": "pnpm --filter @lighthouse/web dev",
     "dev:api": "pnpm --filter @lighthouse/api dev",
     "build": "pnpm -r build",

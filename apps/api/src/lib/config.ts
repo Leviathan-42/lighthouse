@@ -36,6 +36,9 @@ const envSchema = z.object({
   GITEA_URL: optionalUrl,
   GITEA_TOKEN: optionalString,
   GITEA_WEBHOOK_SECRET: optionalString,
+
+  RD_API_KEY: optionalString,
+  TMDB_API_KEY: optionalString,
 });
 
 export type Config = z.infer<typeof envSchema>;
