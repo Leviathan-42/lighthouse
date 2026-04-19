@@ -124,6 +124,11 @@ services:
     container_name: lighthouse-cadvisor
     restart: unless-stopped
     privileged: true
+    # On Ubuntu 24.04 (cgroup v2 + systemd), cAdvisor needs the host's cgroup
+    # and pid namespaces to see Docker containers. Without these, it only sees
+    # its own slice and reports zero container metrics.
+    pid: host
+    cgroup: host
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
