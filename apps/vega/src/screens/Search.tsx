@@ -63,6 +63,9 @@ export function Search() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [season, setSeason] = useState(1);
+  const [episode, setEpisode] = useState(1);
+  const [episodeCount, setEpisodeCount] = useState(0);
+  const [episodeLoading, setEpisodeLoading] = useState(false);
   const [streams, setStreams] = useState<TorrentioStream[] | null>(null);
   const [streamsLoading, setStreamsLoading] = useState(false);
 
@@ -88,15 +91,31 @@ export function Search() {
     setTimeout(() => setToast(null), 2200);
   }
 
+  async function loadEpisodeCount(tmdbId: number, s: number) {
+    setEpisodeLoading(true);
+    setEpisodeCount(0);
+    setEpisode(1);
+    try {
+      const data = await api.get(`/api/v1/media/tmdb/tv/${tmdbId}/season/${s}`) as { episode_count: number };
+      setEpisodeCount(data.episode_count);
+    } finally {
+      setEpisodeLoading(false);
+    }
+  }
+
   async function openDetail(item: SearchResult) {
     setSelected(item);
     setDetail(null);
     setStreams(null);
     setSeason(1);
+    setEpisode(1);
+    setEpisodeCount(0);
     setDetailLoading(true);
     try {
       const data = await api.get(`/api/v1/media/tmdb/${item.media_type}/${item.id}`);
-      setDetail({ ...(data as TmdbDetail), media_type: item.media_type });
+      const d = { ...(data as TmdbDetail), media_type: item.media_type };
+      setDetail(d);
+      if (item.media_type === 'tv') loadEpisodeCount(item.id, 1);
     } finally {
       setDetailLoading(false);
     }
@@ -106,6 +125,7 @@ export function Search() {
     setSelected(null);
     setDetail(null);
     setStreams(null);
+    setEpisodeCount(0);
   }
 
   async function fetchStreams() {
@@ -119,7 +139,7 @@ export function Search() {
       const path =
         detail.media_type === 'movie'
           ? `/api/v1/media/streams/movie/${detail.imdb_id}`
-          : `/api/v1/media/streams/series/${detail.imdb_id}/${season}/1`;
+          : `/api/v1/media/streams/series/${detail.imdb_id}/${season}/${episode}`;
       const data = (await api.get(path)) as { streams: TorrentioStream[] };
       setStreams(data.streams ?? []);
     } catch {
@@ -290,6 +310,7 @@ export function Search() {
                             onClick={() => {
                               setSeason(s);
                               setStreams(null);
+                              loadEpisodeCount(selected!.id, s);
                             }}
                           >
                             {s}
@@ -299,10 +320,32 @@ export function Search() {
                     </div>
                   )}
 
+                  {/* Episode picker */}
+                  {detail.media_type === 'tv' && (
+                    <div className="season-picker">
+                      <span className="season-label">
+                        Episode{episodeLoading ? ' — loading…' : ''}
+                      </span>
+                      {!episodeLoading && episodeCount > 0 && (
+                        <div className="season-nums">
+                          {Array.from({ length: episodeCount }, (_, i) => i + 1).map((e) => (
+                            <button
+                              key={e}
+                              className={`season-btn${episode === e ? ' active' : ''}`}
+                              onClick={() => { setEpisode(e); setStreams(null); }}
+                            >
+                              {e}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {!streams && !streamsLoading && (
                     <button className="primary-btn" onClick={() => void fetchStreams()}>
                       {detail.media_type === 'tv'
-                        ? `Find streams — Season ${season}`
+                        ? `Find streams — S${String(season).padStart(2,'0')}E${String(episode).padStart(2,'0')}`
                         : 'Find streams'}
                     </button>
                   )}

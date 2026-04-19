@@ -19,6 +19,7 @@ export function createTmdbClient(apiKey: string) {
 
     movieExternalIds: (id: number) => tmdbGet(`/movie/${id}/external_ids`, apiKey),
     tvExternalIds: (id: number) => tmdbGet(`/tv/${id}/external_ids`, apiKey),
+    tvSeason: (id: number, season: number) => tmdbGet(`/tv/${id}/season/${season}`, apiKey),
   };
 }
 

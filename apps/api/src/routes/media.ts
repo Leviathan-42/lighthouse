@@ -35,6 +35,19 @@ export async function mediaRoutes(fastify: FastifyInstance, { config }: { config
     },
   );
 
+  // ── TMDb season episode count ─────────────────────────────────────────────
+  fastify.get<{ Params: { id: string; season: string } }>(
+    '/media/tmdb/tv/:id/season/:season',
+    SKIP,
+    async (req, reply) => {
+      if (!tmdb) return reply.badRequest('TMDB_API_KEY not configured');
+      const { id, season } = req.params;
+      const data = await tmdb.tvSeason(parseInt(id, 10), parseInt(season, 10));
+      const episodes = data.episodes as { episode_number: number; name: string }[] | undefined;
+      return { episode_count: episodes?.length ?? 0 };
+    },
+  );
+
   // ── Torrentio — movie streams ─────────────────────────────────────────────
   fastify.get<{ Params: { imdbId: string } }>(
     '/media/streams/movie/:imdbId',
