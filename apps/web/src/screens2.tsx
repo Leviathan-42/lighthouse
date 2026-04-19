@@ -174,6 +174,10 @@ export function NetworkMap() {
   );
 }
 
+// Windows browsers don't have an ssh:// handler by default, so we skip the
+// URL-scheme attempt and just copy the command. Mac/Linux get the scheme.
+const IS_WINDOWS = /Win(dows|64|32|NT)/i.test(navigator.userAgent);
+
 function NodeInspector({ node }: { node: TailnetNode }) {
   const [pingMs, setPingMs] = useState<number | null>(null);
   const [pingErr, setPingErr] = useState<string | null>(null);
@@ -197,13 +201,11 @@ function NodeInspector({ node }: { node: TailnetNode }) {
     try {
       await navigator.clipboard.writeText(cmd);
       clipboardOk = true;
-    } catch {
-      /* secure-context required; fall through to the protocol handler */
+    } catch { /* secure-context required; fall through */ }
+    if (!IS_WINDOWS) {
+      // Mac/Linux have an ssh:// handler — Terminal / default terminal opens.
+      try { window.location.href = `ssh://${node.ip}`; } catch { /* ignore */ }
     }
-    // Also attempt the ssh:// scheme — if the OS has a handler registered,
-    // their terminal opens. If not, nothing happens and the clipboard copy
-    // (above) is the useful outcome.
-    try { window.location.href = `ssh://${node.ip}`; } catch { /* ignore */ }
     if (clipboardOk) {
       setSshCopied(true);
       setTimeout(() => setSshCopied(false), 2500);
@@ -211,6 +213,8 @@ function NodeInspector({ node }: { node: TailnetNode }) {
       window.prompt('Run in your terminal:', cmd);
     }
   };
+
+  const sshLabel = sshCopied ? `copied: ssh ${node.ip}` : IS_WINDOWS ? 'Copy SSH cmd' : 'SSH';
 
   const doPing = async () => {
     setPinging(true);
@@ -243,7 +247,7 @@ function NodeInspector({ node }: { node: TailnetNode }) {
           {node.exitNode && <Badge tone="warn">exit node</Badge>}
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
-          <Button size="sm" variant="accent" icon={<Icon.ExternalLink />} onClick={openSsh}>{sshCopied ? `copied: ssh ${node.ip}` : 'SSH'}</Button>
+          <Button size="sm" variant="accent" icon={<Icon.ExternalLink />} onClick={openSsh}>{sshLabel}</Button>
           <Button size="sm" icon={<Icon.Copy />} onClick={copyIp}>{copied ? 'Copied!' : 'Copy IP'}</Button>
           <Button size="sm" onClick={doPing} disabled={pinging}>
             {pinging ? 'Pinging…' : pingMs != null ? `${pingMs}ms` : pingErr ? 'no reply' : 'Ping'}
