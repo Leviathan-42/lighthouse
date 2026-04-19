@@ -10,6 +10,12 @@ export async function mediaRoutes(fastify: FastifyInstance, { config }: { config
   const rd = config.RD_API_KEY ? createRdClient(config.RD_API_KEY) : null;
   const tmdb = config.TMDB_API_KEY ? createTmdbClient(config.TMDB_API_KEY) : null;
 
+  // ── TMDb trending ─────────────────────────────────────────────────────────
+  fastify.get('/media/trending', SKIP, async (_req, reply) => {
+    if (!tmdb) return reply.badRequest('TMDB_API_KEY not configured');
+    return tmdb.trending();
+  });
+
   // ── TMDb search ──────────────────────────────────────────────────────────
   fastify.get('/media/search', SKIP, async (req, reply) => {
     if (!tmdb) return reply.badRequest('TMDB_API_KEY not configured');

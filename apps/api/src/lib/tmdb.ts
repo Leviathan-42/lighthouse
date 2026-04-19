@@ -14,6 +14,8 @@ export function createTmdbClient(apiKey: string) {
     search: (query: string) =>
       tmdbGet('/search/multi', apiKey, { query, include_adult: 'false' }),
 
+    trending: () => tmdbGet('/trending/all/day', apiKey, { include_adult: 'false' }),
+
     movie: (id: number) => tmdbGet(`/movie/${id}`, apiKey),
     tv: (id: number) => tmdbGet(`/tv/${id}`, apiKey),
 

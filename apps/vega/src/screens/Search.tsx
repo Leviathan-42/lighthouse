@@ -72,6 +72,13 @@ export function Search() {
   const [adding, setAdding] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
 
+  const { data: trendingData } = useQuery({
+    queryKey: ['tmdb-trending'],
+    queryFn: () => api.get('/api/v1/media/trending') as Promise<{ results?: (SearchResult & { media_type: string })[] }>,
+    enabled: debouncedQuery.length < 2,
+    staleTime: 5 * 60_000,
+  });
+
   const { data: searchData, isLoading: searching } = useQuery({
     queryKey: ['tmdb-search', debouncedQuery],
     queryFn: () =>
@@ -81,10 +88,11 @@ export function Search() {
     enabled: debouncedQuery.length >= 2,
   });
 
-  const results: SearchResult[] =
-    searchData?.results?.filter(
-      (r): r is SearchResult => r.media_type === 'movie' || r.media_type === 'tv',
-    ) ?? [];
+  const isShowingTrending = debouncedQuery.length < 2;
+
+  const results: SearchResult[] = isShowingTrending
+    ? (trendingData?.results?.filter((r): r is SearchResult => r.media_type === 'movie' || r.media_type === 'tv') ?? [])
+    : (searchData?.results?.filter((r): r is SearchResult => r.media_type === 'movie' || r.media_type === 'tv') ?? []);
 
   function showToast(msg: string, type: Toast['type']) {
     setToast({ msg, type });
@@ -201,6 +209,10 @@ export function Search() {
         {searching && <div className="loader">Searching…</div>}
 
         {!searching && results.length > 0 && (
+          <>
+            {isShowingTrending && (
+              <div className="results-heading">Trending now</div>
+            )}
           <div className="results-grid">
             {results.map((r) => (
               <button key={`${r.media_type}-${r.id}`} className="poster-card" onClick={() => void openDetail(r)}>
@@ -225,16 +237,11 @@ export function Search() {
               </button>
             ))}
           </div>
+          </>
         )}
 
         {!searching && debouncedQuery.length >= 2 && results.length === 0 && (
           <div className="empty">No results for "{debouncedQuery}"</div>
-        )}
-
-        {!debouncedQuery && (
-          <div className="empty" style={{ paddingTop: 80 }}>
-            Search for a movie or show to add it to Real-Debrid
-          </div>
         )}
       </div>
 
