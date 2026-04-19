@@ -15,26 +15,36 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="app">
-        <div className="app-content">
-          {tab === 'search' ? <Search /> : <Library />}
-        </div>
-
+        {/* Sidebar on desktop, bottom bar on mobile */}
         <nav className="tab-bar">
-          <button className={`tab-btn${tab === 'search' ? ' active' : ''}`} onClick={() => setTab('search')}>
+          <span className="sidebar-brand">Vega</span>
+
+          <button
+            className={`tab-btn${tab === 'search' ? ' active' : ''}`}
+            onClick={() => setTab('search')}
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.35-4.35" />
             </svg>
-            Search
+            <span>Search</span>
           </button>
-          <button className={`tab-btn${tab === 'library' ? ' active' : ''}`} onClick={() => setTab('library')}>
+
+          <button
+            className={`tab-btn${tab === 'library' ? ' active' : ''}`}
+            onClick={() => setTab('library')}
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
             </svg>
-            Library
+            <span>Library</span>
           </button>
         </nav>
+
+        <div className="app-content">
+          {tab === 'search' ? <Search /> : <Library />}
+        </div>
       </div>
     </QueryClientProvider>
   );
