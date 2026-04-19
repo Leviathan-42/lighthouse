@@ -44,7 +44,7 @@ export async function localPing(ip: string, socketPath = SOCKET, timeoutMs = 150
         // `Sec-Tailscale: localapi` is required by tailscaled's CSRF guard on
         // "unsafe" (state-modifying) endpoints like ping. Status skips this.
         headers: {
-          Host: 'local-tailscaled',
+          Host: 'local-tailscaled.sock',
           Authorization: AUTH_HEADER,
           'Sec-Tailscale': 'localapi',
           'Content-Length': '0',
@@ -82,7 +82,7 @@ function localApiGet<T>(path: string, socketPath: string, timeoutMs: number): Pr
         socketPath,
         method: 'GET',
         path,
-        headers: { Host: 'local-tailscaled', Authorization: AUTH_HEADER },
+        headers: { Host: 'local-tailscaled.sock', Authorization: AUTH_HEADER },
         timeout: timeoutMs,
       },
       (res) => {
