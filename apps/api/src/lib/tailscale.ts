@@ -76,7 +76,7 @@ export function createTailscaleClient(config: TailscaleConfig): TailscaleClient 
     if (!config.clientId || !config.clientSecret) return null;
     try {
       const d = await apiGet<TsDevice>(`/device/${encodeURIComponent(id)}`);
-      return deviceToNode(d, 0, 1);
+      return deviceToNode(d);
     } catch {
       return null;
     }
