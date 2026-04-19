@@ -1,0 +1,25 @@
+# Dev overrides — use with the main compose.yml to relax auth and expose
+# some internal ports for debugging.
+#
+# docker compose -f infra/compose.yml -f infra/compose.dev.yml --env-file .env.dev up
+
+services:
+  lighthouse-api:
+    environment:
+      LIGHTHOUSE_AUTH_BYPASS: "1"
+      LIGHTHOUSE_LOG_LEVEL: debug
+      NODE_ENV: development
+    ports:
+      - "127.0.0.1:4000:4000"
+
+  prometheus:
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  loki:
+    ports:
+      - "127.0.0.1:3100:3100"
+
+  cadvisor:
+    ports:
+      - "127.0.0.1:8081:8080"

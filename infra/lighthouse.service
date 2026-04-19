@@ -1,0 +1,17 @@
+[Unit]
+Description=Lighthouse homelab dashboard
+Documentation=https://github.com/your-handle/lighthouse
+Requires=docker.service
+After=docker.service tailscaled.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+WorkingDirectory=/opt/lighthouse
+ExecStart=/usr/bin/docker compose -f infra/compose.yml --env-file .env up -d
+ExecStop=/usr/bin/docker compose -f infra/compose.yml --env-file .env down
+TimeoutStartSec=10min
+
+[Install]
+WantedBy=multi-user.target

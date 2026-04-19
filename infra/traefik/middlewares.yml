@@ -1,0 +1,11 @@
+# Dynamic Traefik config. Kept minimal — most routing is via Docker labels.
+
+http:
+  middlewares:
+    # Passes the Tailscale-User-Login header through unchanged. `tailscale serve`
+    # injects it at the edge; we just need to make sure Traefik doesn't strip it.
+    lh-ts-headers:
+      headers:
+        customRequestHeaders:
+          # no overrides — this exists so we can reference it by name for future additions
+          X-Forwarded-Proto: "https"
