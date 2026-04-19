@@ -43,8 +43,10 @@ export async function mediaRoutes(fastify: FastifyInstance, { config }: { config
       if (!tmdb) return reply.badRequest('TMDB_API_KEY not configured');
       const { id, season } = req.params;
       const data = await tmdb.tvSeason(parseInt(id, 10), parseInt(season, 10));
-      const episodes = data.episodes as { episode_number: number; name: string }[] | undefined;
-      return { episode_count: episodes?.length ?? 0 };
+      const episodes = data.episodes as { episode_number: number; air_date?: string }[] | undefined;
+      const today = new Date().toISOString().slice(0, 10);
+      const aired = episodes?.filter((e) => e.air_date && e.air_date <= today) ?? [];
+      return { episode_count: aired.length };
     },
   );
 
