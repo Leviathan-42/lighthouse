@@ -1,0 +1,18 @@
+zurg: v1
+# Paste your Real-Debrid API token here
+token: REPLACE_ME
+port: 9999
+concurrent_workers: 20
+check_for_changes_every_secs: 10
+retain_rd_torrent_name: true
+retain_folder_name_extension: true
+enable_repair: true
+directories:
+  shows:
+    group: 1
+    filters:
+      - any_file_inside_regex: /(s\d+e\d+|season[\s._-]?\d+|complete)/i
+  movies:
+    group: 1
+    filters:
+      - any_file_inside_regex: /^(?!.*(s\d+e\d+|season[\s._-]?\d+)).*(\.mkv|\.mp4|\.avi)$/i

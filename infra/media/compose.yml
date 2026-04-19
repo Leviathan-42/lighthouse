@@ -1,0 +1,77 @@
+name: media
+
+networks:
+  media:
+    driver: bridge
+
+services:
+  zurg:
+    image: ghcr.io/debridmediamanager/zurg-testing:latest
+    container_name: zurg
+    restart: unless-stopped
+    labels:
+      lighthouse.category: "media"
+      lighthouse.host: "zurg.local"
+    volumes:
+      - "./zurg-config.yml:/app/config.yml"
+      - "./zurg-data:/app/data"
+    networks:
+      - media
+
+  rclone:
+    image: rclone/rclone:latest
+    container_name: rclone-zurg
+    restart: unless-stopped
+    depends_on:
+      - zurg
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - "/dev/fuse:/dev/fuse"
+    security_opt:
+      - "apparmor:unconfined"
+    volumes:
+      - "./rclone-config:/config/rclone"
+      - "/mnt/zurg:/mnt/zurg:shared"
+    command:
+      - mount
+      - "zurg:"
+      - /mnt/zurg
+      - --allow-other
+      - --allow-non-empty
+      - --dir-cache-time
+      - 10s
+      - --vfs-cache-mode
+      - full
+      - --vfs-read-chunk-size
+      - 32M
+      - --buffer-size
+      - 32M
+      - --umask
+      - "002"
+      - --uid
+      - "1000"
+      - --gid
+      - "1000"
+    networks:
+      - media
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    depends_on:
+      - rclone
+    labels:
+      lighthouse.category: "media"
+      lighthouse.host: "jellyfin.ts"
+    environment:
+      JELLYFIN_PublishedServerUrl: "http://krakaren.tail31b06b.ts.net"
+    volumes:
+      - "./jellyfin-config:/config"
+      - "./jellyfin-cache:/cache"
+      - "/mnt/zurg:/media:ro"
+    ports:
+      - "127.0.0.1:8096:8096"
+    networks:
+      - media
