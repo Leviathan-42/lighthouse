@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import type { LogLevel, Service, ServiceMetrics, ServiceStatus } from '@lighthouse/shared';
 import { spark } from './data';
 import { StatusDot, Button, Sparkline, Badge, Icon } from './primitives';
+import { TerminalPane } from './components/Terminal';
 import {
   useRestartService,
   useRedeployService,
@@ -331,6 +332,7 @@ export function ServiceDetail({ id }: ServiceDetailProps) {
   const redeploy = useRedeployService();
   const [lvlFilter, setLvlFilter] = useState<LogFilter>('all');
   const [wrap, setWrap] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const logsRef = useRef<HTMLDivElement | null>(null);
 
   const visibleLogs = lvlFilter === 'all' ? logs : logs.filter((l) => l.lvl === lvlFilter);
@@ -366,7 +368,7 @@ export function ServiceDetail({ id }: ServiceDetailProps) {
         </span>}
         subtitle={<span className="mono">{svc.host} · {svc.version}</span>}
         right={<div style={{ display: 'flex', gap: 6 }}>
-          <Button size="md" variant="accent" icon={<Icon.ExternalLink />}>Open in Tailscale</Button>
+          <Button size="md" icon={<Icon.Terminal />} onClick={() => setTerminalOpen(true)}>Terminal</Button>
           <Button size="md" icon={<Icon.Restart />} disabled={restart.isPending} onClick={() => restart.mutate(svc.id)}>
             {restart.isPending ? 'Restarting…' : 'Restart'}
           </Button>
@@ -375,6 +377,7 @@ export function ServiceDetail({ id }: ServiceDetailProps) {
           </Button>
         </div>}
       />
+      {terminalOpen && <TerminalPane serviceId={svc.id} onClose={() => setTerminalOpen(false)} />}
 
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)',

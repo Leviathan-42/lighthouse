@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import sensible from '@fastify/sensible';
+import websocket from '@fastify/websocket';
 import type { Config } from './lib/config.js';
 import { createDockerClient } from './lib/docker.js';
 import { createPromClient } from './lib/prometheus.js';
@@ -16,6 +17,7 @@ import { logRoutes } from './routes/logs.js';
 import { tailnetRoutes } from './routes/tailnet.js';
 import { deployRoutes } from './routes/deploys.js';
 import { webhookRoutes } from './routes/webhooks.js';
+import { terminalRoutes } from './routes/terminal.js';
 
 export async function buildServer(config: Config) {
   const fastify = Fastify({
@@ -30,6 +32,7 @@ export async function buildServer(config: Config) {
 
   await fastify.register(sensible);
   await fastify.register(cors, { origin: true, credentials: true });
+  await fastify.register(websocket, { options: { maxPayload: 1024 * 1024 } });
 
   const docker = createDockerClient(config.DOCKER_SOCK);
   const prom = createPromClient(config.PROMETHEUS_URL);
@@ -58,6 +61,7 @@ export async function buildServer(config: Config) {
       await tailnetRoutes(api, { tailscale });
       await deployRoutes(api, { db, engine });
       await webhookRoutes(api, { docker, engine, webhookSecret: config.GITEA_WEBHOOK_SECRET });
+      await terminalRoutes(api, { docker });
     },
     { prefix: '/api/v1' },
   );
