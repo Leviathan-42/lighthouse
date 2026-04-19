@@ -49,10 +49,9 @@ export function createTailscaleClient(config: TailscaleConfig): TailscaleClient 
 
   async function listDevices(): Promise<TailnetNode[]> {
     if (!config.clientId || !config.clientSecret) {
-      // Even without OAuth, we can still show local tailscaled peers — handy
-      // when the user hasn't wired the cloud API yet.
       const local = await localTailscaleStatus();
-      return local ? local.peers.map((p, i) => localPeerToNode(p, i, local.peers.length, local.selfId)) : [];
+      if (!local) return [];
+      return assignRadialLayout(local.peers.map((p) => localPeerToNode(p, local.selfId)));
     }
     const [remote, local] = await Promise.all([
       apiGet<{ devices: TsDevice[] }>(`/tailnet/${encodeURIComponent(tailnet())}/devices`),
@@ -64,16 +63,13 @@ export function createTailscaleClient(config: TailscaleConfig): TailscaleClient 
         for (const ip of peer.tailscaleIPs) localByIp.set(ip, peer);
       }
     }
-    return remote.devices.map((d, i) => {
-      const node = deviceToNode(d, i, remote.devices.length);
+    const nodes = remote.devices.map((d) => {
+      const node = deviceToNode(d);
       const match = d.addresses.map((a) => localByIp.get(a)).find(Boolean);
-      if (match) {
-        // Online status comes from local tailscaled — it's the truth source
-        // for whether a peer is currently reachable.
-        if (!match.online) node.role = node.role; // keep role; role != online
-      }
+      if (match && !match.online) node.latency = -1; // offline marker
       return node;
     });
+    return assignRadialLayout(nodes);
   }
 
   async function getDevice(id: string): Promise<TailnetNode | null> {
@@ -106,10 +102,9 @@ interface TsDevice {
   isExternal?: boolean;
 }
 
-function deviceToNode(d: TsDevice, i: number, total: number): TailnetNode {
+function deviceToNode(d: TsDevice): TailnetNode {
   const ip = d.addresses.find((a) => a.startsWith('100.')) || d.addresses[0] || '';
   const role = inferRole(d);
-  const { x, y } = layoutPosition(role, i, total);
   const node: TailnetNode = {
     id: d.id,
     name: d.hostname || d.name,
@@ -117,8 +112,8 @@ function deviceToNode(d: TsDevice, i: number, total: number): TailnetNode {
     ip,
     os: d.os,
     latency: 0,
-    x,
-    y,
+    x: 0.5,
+    y: 0.5,
   };
   if (d.enabledRoutes && d.enabledRoutes.length > 0) {
     node.exitNode = d.enabledRoutes.includes('0.0.0.0/0') || d.enabledRoutes.includes('::/0');
@@ -128,10 +123,9 @@ function deviceToNode(d: TsDevice, i: number, total: number): TailnetNode {
   return node;
 }
 
-function localPeerToNode(p: LocalPeer, i: number, total: number, selfId: string | null): TailnetNode {
+function localPeerToNode(p: LocalPeer, selfId: string | null): TailnetNode {
   const ip = p.tailscaleIPs.find((a) => a.startsWith('100.')) || p.tailscaleIPs[0] || '';
   const role: TailnetNode['role'] = p.id === selfId ? 'self' : inferRoleFromHostname(p.hostName);
-  const { x, y } = layoutPosition(role, i, total);
   return {
     id: p.id,
     name: p.hostName || p.id,
@@ -139,23 +133,46 @@ function localPeerToNode(p: LocalPeer, i: number, total: number, selfId: string 
     ip,
     os: '',
     latency: 0,
-    x,
-    y,
+    x: 0.5,
+    y: 0.5,
   };
 }
 
-// Hub-and-spoke layout: self top-center, servers in a row below,
-// mobile to the left, cloud to the right. The mock's aesthetic.
-function layoutPosition(role: TailnetNode['role'], i: number, total: number): { x: number; y: number } {
-  if (role === 'self') return { x: 0.5, y: 0.18 };
-  const bucket: Record<Exclude<TailnetNode['role'], 'self'>, { y: number; xRange: [number, number] }> = {
-    server: { y: 0.55, xRange: [0.2, 0.8] },
-    mobile: { y: 0.35, xRange: [0.05, 0.25] },
-    cloud: { y: 0.82, xRange: [0.15, 0.85] },
-  };
-  const b = bucket[role];
-  const spread = total > 1 ? (i % Math.max(total - 1, 1)) / Math.max(total - 1, 1) : 0.5;
-  return { x: b.xRange[0] + spread * (b.xRange[1] - b.xRange[0]), y: b.y };
+// Radial layout — self at the center, peers spread on a ring around it.
+// Mobile sits on a tighter inner ring, cloud nodes on a wider outer one,
+// servers in between. Gives the map the "hub + spokes" look from the mock.
+function assignRadialLayout(nodes: TailnetNode[]): TailnetNode[] {
+  const self = nodes.find((n) => n.role === 'self');
+  const peers = nodes.filter((n) => n !== self);
+  const result: TailnetNode[] = [];
+  if (self) result.push({ ...self, x: 0.5, y: 0.5 });
+
+  // Seeded angular offset per node so the ring orientation is stable across refreshes.
+  peers.forEach((peer, i) => {
+    const base = (i / Math.max(peers.length, 1)) * Math.PI * 2;
+    // Gentle wobble per node keeps it from feeling like a dial
+    const wobble = (hashStr(peer.id) % 100) / 800; // ±0.125 rad
+    const angle = base - Math.PI / 2 + wobble;
+    const radius =
+      peer.role === 'cloud' ? 0.42 :
+      peer.role === 'mobile' ? 0.24 :
+      0.32;
+    result.push({
+      ...peer,
+      x: 0.5 + radius * Math.cos(angle),
+      y: 0.5 + radius * Math.sin(angle),
+    });
+  });
+  return result;
+}
+
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
 }
 
 function inferRole(d: TsDevice): TailnetNode['role'] {
