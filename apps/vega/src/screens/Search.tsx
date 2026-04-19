@@ -96,7 +96,7 @@ export function Search() {
     setDetailLoading(true);
     try {
       const data = await api.get(`/api/v1/media/tmdb/${item.media_type}/${item.id}`);
-      setDetail(data as TmdbDetail);
+      setDetail({ ...(data as TmdbDetail), media_type: item.media_type });
     } finally {
       setDetailLoading(false);
     }
