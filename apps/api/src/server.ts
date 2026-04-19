@@ -52,7 +52,7 @@ export async function buildServer(config: Config) {
   await fastify.register(
     async (api) => {
       await healthRoutes(api, { docker, config });
-      await serviceRoutes(api, { docker });
+      await serviceRoutes(api, { docker, prom });
       await metricsRoutes(api, { docker, prom });
       await logRoutes(api, { docker, loki });
       await tailnetRoutes(api, { tailscale });

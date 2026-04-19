@@ -1,4 +1,5 @@
 import type { TailnetNode } from '@lighthouse/shared';
+import { localTailscaleStatus, type LocalPeer } from './tailscale-local.js';
 
 export interface TailscaleClient {
   listDevices: () => Promise<TailnetNode[]>;
@@ -47,9 +48,32 @@ export function createTailscaleClient(config: TailscaleConfig): TailscaleClient 
   }
 
   async function listDevices(): Promise<TailnetNode[]> {
-    if (!config.clientId || !config.clientSecret) return [];
-    const body = await apiGet<{ devices: TsDevice[] }>(`/tailnet/${encodeURIComponent(tailnet())}/devices`);
-    return body.devices.map((d, i) => deviceToNode(d, i, body.devices.length));
+    if (!config.clientId || !config.clientSecret) {
+      // Even without OAuth, we can still show local tailscaled peers — handy
+      // when the user hasn't wired the cloud API yet.
+      const local = await localTailscaleStatus();
+      return local ? local.peers.map((p, i) => localPeerToNode(p, i, local.peers.length, local.selfId)) : [];
+    }
+    const [remote, local] = await Promise.all([
+      apiGet<{ devices: TsDevice[] }>(`/tailnet/${encodeURIComponent(tailnet())}/devices`),
+      localTailscaleStatus(),
+    ]);
+    const localByIp = new Map<string, LocalPeer>();
+    if (local) {
+      for (const peer of local.peers) {
+        for (const ip of peer.tailscaleIPs) localByIp.set(ip, peer);
+      }
+    }
+    return remote.devices.map((d, i) => {
+      const node = deviceToNode(d, i, remote.devices.length);
+      const match = d.addresses.map((a) => localByIp.get(a)).find(Boolean);
+      if (match) {
+        // Online status comes from local tailscaled — it's the truth source
+        // for whether a peer is currently reachable.
+        if (!match.online) node.role = node.role; // keep role; role != online
+      }
+      return node;
+    });
   }
 
   async function getDevice(id: string): Promise<TailnetNode | null> {
@@ -83,19 +107,16 @@ interface TsDevice {
 }
 
 function deviceToNode(d: TsDevice, i: number, total: number): TailnetNode {
-  // Lay nodes out on a circle for the map view. The UI only uses x/y for SVG
-  // positioning; a smarter layout can come later.
-  const angle = (i / Math.max(total, 1)) * Math.PI * 2;
-  const x = 0.5 + 0.35 * Math.cos(angle);
-  const y = 0.5 + 0.35 * Math.sin(angle);
   const ip = d.addresses.find((a) => a.startsWith('100.')) || d.addresses[0] || '';
+  const role = inferRole(d);
+  const { x, y } = layoutPosition(role, i, total);
   const node: TailnetNode = {
     id: d.id,
     name: d.hostname || d.name,
-    role: inferRole(d),
+    role,
     ip,
     os: d.os,
-    latency: 0, // filled from local tailscaled on detail view
+    latency: 0,
     x,
     y,
   };
@@ -107,10 +128,47 @@ function deviceToNode(d: TsDevice, i: number, total: number): TailnetNode {
   return node;
 }
 
+function localPeerToNode(p: LocalPeer, i: number, total: number, selfId: string | null): TailnetNode {
+  const ip = p.tailscaleIPs.find((a) => a.startsWith('100.')) || p.tailscaleIPs[0] || '';
+  const role: TailnetNode['role'] = p.id === selfId ? 'self' : inferRoleFromHostname(p.hostName);
+  const { x, y } = layoutPosition(role, i, total);
+  return {
+    id: p.id,
+    name: p.hostName || p.id,
+    role,
+    ip,
+    os: '',
+    latency: 0,
+    x,
+    y,
+  };
+}
+
+// Hub-and-spoke layout: self top-center, servers in a row below,
+// mobile to the left, cloud to the right. The mock's aesthetic.
+function layoutPosition(role: TailnetNode['role'], i: number, total: number): { x: number; y: number } {
+  if (role === 'self') return { x: 0.5, y: 0.18 };
+  const bucket: Record<Exclude<TailnetNode['role'], 'self'>, { y: number; xRange: [number, number] }> = {
+    server: { y: 0.55, xRange: [0.2, 0.8] },
+    mobile: { y: 0.35, xRange: [0.05, 0.25] },
+    cloud: { y: 0.82, xRange: [0.15, 0.85] },
+  };
+  const b = bucket[role];
+  const spread = total > 1 ? (i % Math.max(total - 1, 1)) / Math.max(total - 1, 1) : 0.5;
+  return { x: b.xRange[0] + spread * (b.xRange[1] - b.xRange[0]), y: b.y };
+}
+
 function inferRole(d: TsDevice): TailnetNode['role'] {
   const os = (d.os || '').toLowerCase();
   if (os.includes('ios') || os.includes('android')) return 'mobile';
-  if (os.includes('linux') && d.hostname?.match(/^(oracle|hetzner|aws|gcp|azure)/i)) return 'cloud';
-  if (os.includes('linux') || os.includes('bsd') || os.includes('macos')) return 'server';
+  if (os.includes('linux') && d.hostname?.match(/^(oracle|hetzner|aws|gcp|azure|digitalocean)/i)) return 'cloud';
+  if (os.includes('linux') || os.includes('bsd') || os.includes('macos') || os.includes('windows')) return 'server';
+  return 'server';
+}
+
+function inferRoleFromHostname(hostname: string): TailnetNode['role'] {
+  const h = hostname.toLowerCase();
+  if (/(iphone|ipad|android|phone|mobile)/.test(h)) return 'mobile';
+  if (/^(oracle|hetzner|aws|gcp|azure|digitalocean)/.test(h)) return 'cloud';
   return 'server';
 }
