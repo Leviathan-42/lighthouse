@@ -10,6 +10,7 @@ export const tailscaleAuth: FastifyPluginAsync<{ bypass: boolean }> = async (
 ) => {
   fastify.addHook('onRequest', async (req, reply) => {
     if (OPEN_PATHS.has(req.url.split('?')[0]!)) return;
+    if ((req.routeOptions?.config as { skipAuth?: boolean } | undefined)?.skipAuth) return;
 
     const login = req.headers['tailscale-user-login'];
     if (opts.bypass) {

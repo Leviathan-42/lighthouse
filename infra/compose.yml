@@ -95,6 +95,8 @@ services:
     image: lighthouse/vega:latest
     container_name: lighthouse-vega
     restart: unless-stopped
+    ports:
+      - "8097:80"
     labels:
       traefik.enable: "true"
       traefik.docker.network: "lighthouse"

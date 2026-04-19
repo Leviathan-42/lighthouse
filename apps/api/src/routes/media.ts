@@ -4,13 +4,14 @@ import { createRdClient } from '../lib/realdebrid.js';
 import { createTmdbClient } from '../lib/tmdb.js';
 
 const TORRENTIO = 'https://torrentio.strem.fun';
+const SKIP = { config: { skipAuth: true } } as const;
 
 export async function mediaRoutes(fastify: FastifyInstance, { config }: { config: Config }) {
   const rd = config.RD_API_KEY ? createRdClient(config.RD_API_KEY) : null;
   const tmdb = config.TMDB_API_KEY ? createTmdbClient(config.TMDB_API_KEY) : null;
 
   // ── TMDb search ──────────────────────────────────────────────────────────
-  fastify.get('/media/search', async (req, reply) => {
+  fastify.get('/media/search', SKIP, async (req, reply) => {
     if (!tmdb) return reply.badRequest('TMDB_API_KEY not configured');
     const { q } = req.query as { q?: string };
     if (!q?.trim()) return { results: [] };
@@ -20,6 +21,7 @@ export async function mediaRoutes(fastify: FastifyInstance, { config }: { config
   // ── TMDb detail + IMDB ID ─────────────────────────────────────────────────
   fastify.get<{ Params: { type: string; id: string } }>(
     '/media/tmdb/:type/:id',
+    SKIP,
     async (req, reply) => {
       if (!tmdb) return reply.badRequest('TMDB_API_KEY not configured');
       const { type, id } = req.params;
@@ -36,6 +38,7 @@ export async function mediaRoutes(fastify: FastifyInstance, { config }: { config
   // ── Torrentio — movie streams ─────────────────────────────────────────────
   fastify.get<{ Params: { imdbId: string } }>(
     '/media/streams/movie/:imdbId',
+    SKIP,
     async (req) => {
       const { imdbId } = req.params;
       const res = await fetch(`${TORRENTIO}/stream/movie/${imdbId}.json`);
@@ -47,6 +50,7 @@ export async function mediaRoutes(fastify: FastifyInstance, { config }: { config
   // ── Torrentio — series streams ────────────────────────────────────────────
   fastify.get<{ Params: { imdbId: string; season: string; episode: string } }>(
     '/media/streams/series/:imdbId/:season/:episode',
+    SKIP,
     async (req) => {
       const { imdbId, season, episode } = req.params;
       const res = await fetch(
@@ -58,13 +62,13 @@ export async function mediaRoutes(fastify: FastifyInstance, { config }: { config
   );
 
   // ── RD library ────────────────────────────────────────────────────────────
-  fastify.get('/media/library', async (_req, reply) => {
+  fastify.get('/media/library', SKIP, async (_req, reply) => {
     if (!rd) return reply.badRequest('RD_API_KEY not configured');
     return rd.listTorrents();
   });
 
   // ── Add magnet to RD ──────────────────────────────────────────────────────
-  fastify.post('/media/add', async (req, reply) => {
+  fastify.post('/media/add', SKIP, async (req, reply) => {
     if (!rd) return reply.badRequest('RD_API_KEY not configured');
     const { magnet } = req.body as { magnet?: string };
     if (!magnet?.startsWith('magnet:')) return reply.badRequest('invalid magnet');
@@ -72,7 +76,7 @@ export async function mediaRoutes(fastify: FastifyInstance, { config }: { config
   });
 
   // ── Delete from RD ────────────────────────────────────────────────────────
-  fastify.delete<{ Params: { id: string } }>('/media/torrents/:id', async (req, reply) => {
+  fastify.delete<{ Params: { id: string } }>('/media/torrents/:id', SKIP, async (req, reply) => {
     if (!rd) return reply.badRequest('RD_API_KEY not configured');
     await rd.deleteTorrent(req.params.id);
     return reply.code(204).send();
