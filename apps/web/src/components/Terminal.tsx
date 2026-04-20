@@ -14,6 +14,8 @@ interface TerminalPaneProps {
 
 export function TerminalPane({ serviceId, onClose }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -82,7 +84,7 @@ export function TerminalPane({ serviceId, onClose }: TerminalPaneProps) {
     });
     ro.observe(host);
 
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && e.ctrlKey) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && e.ctrlKey) onCloseRef.current(); };
     window.addEventListener('keydown', onKey);
 
     return () => {
@@ -93,7 +95,7 @@ export function TerminalPane({ serviceId, onClose }: TerminalPaneProps) {
       try { ws.close(); } catch { /* ignore */ }
       term.dispose();
     };
-  }, [serviceId, onClose]);
+  }, [serviceId]);
 
   return (
     <div
