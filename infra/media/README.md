@@ -34,4 +34,4 @@ Point your browser at `http://<server-ip>:8096` (or over the tailnet once
 `tailscale serve --set-path=/jellyfin http://127.0.0.1:8096` is set).
 
 - Add Library → Shows → `/media/shows`
-- Add Library → Movies → `/media/movies`
+- Add Library → Movies → `/media/videos`
